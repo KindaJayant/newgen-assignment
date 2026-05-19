@@ -21,7 +21,7 @@ ensure_runtime_dirs()
 
 store = JobStore()
 store.init_db()
-executor = ProcessPoolExecutor(max_workers=1)
+executor = None if IS_VERCEL else ProcessPoolExecutor(max_workers=1)
 
 
 @asynccontextmanager
@@ -29,7 +29,8 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
-        executor.shutdown(wait=False, cancel_futures=False)
+        if executor is not None:
+            executor.shutdown(wait=False, cancel_futures=False)
 
 
 app = FastAPI(
@@ -85,7 +86,7 @@ def trigger_join(
         "chunk_size": request.chunk_size,
     }
 
-    if request.execution_mode == ExecutionMode.background_task:
+    if request.execution_mode == ExecutionMode.background_task or executor is None:
         background_tasks.add_task(run_join_job, job.job_id, options)
     else:
         executor.submit(run_join_job, job.job_id, options)
