@@ -2,6 +2,8 @@
 
 Assignment-ready implementation for joining large CSV datasets without loading them fully into memory, then triggering the join through a non-blocking FastAPI API.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/KindaJayant/newgen-assignment)
+
 ## Direction
 
 The primary join engine is DuckDB because it can scan CSV files lazily, enforce a memory limit, and spill intermediate work to disk. A pure Python external sort-merge join is also included to demonstrate the out-of-core algorithm explicitly.
