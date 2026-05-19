@@ -197,19 +197,19 @@ The tests verify:
 
 ## Deployment
 
-The app has also been deployed as a lightweight hosted demo:
+The app is deployed on Render:
 
-[https://newgenassignment.vercel.app](https://newgenassignment.vercel.app)
+[https://newgen-assignment.onrender.com](https://newgen-assignment.onrender.com)
 
-The production demo uses the same FastAPI app and dashboard. Since Vercel is serverless, it uses committed sample CSV files and `background_task` mode for the hosted demo. Locally or on a long-running service such as Render, the same app can use `process_pool`.
+Render is the preferred deployment target for this project because it runs the FastAPI app as a long-lived web service. That better matches the assignment design than serverless hosting, especially for the `process_pool` execution mode.
 
 Deployment process:
 
 1. Install dependencies from `requirements.txt`.
 2. Run the FastAPI app with `uvicorn app.main:app`.
-3. For Vercel, route requests through `api/index.py` and `vercel.json`.
-4. For Render, use `render.yaml` with `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-5. Keep Python pinned to `3.11.11` for stable DuckDB binary wheels.
+3. On Render, use `render.yaml` with `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+4. Keep Python pinned to `3.11.11` for stable DuckDB binary wheels.
+5. Use the service URL to open the dashboard and trigger join jobs.
 
 ## Project Structure
 
@@ -218,7 +218,7 @@ app/
   main.py                 FastAPI routes and app setup
   jobs.py                 SQLite job store and worker orchestration
   models.py               Pydantic request/response models
-  settings.py             Local/Vercel runtime paths
+  settings.py             Runtime paths for local and hosted environments
 joiners/
   duckdb_join.py          DuckDB-backed out-of-core join
   external_sort_join.py   Pure Python external sort-merge join
