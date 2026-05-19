@@ -79,3 +79,12 @@ npx vercel --prod
 ```
 
 For the strongest interview demo of long-running background jobs, run locally or use a container/VM host such as Render, Railway, Fly.io, or an EC2 instance. Vercel is serverless, so it is useful for a lightweight hosted demo but not the ideal production target for long CPU-heavy background workers.
+
+Render is also configured through `render.yaml`. To deploy there, create a new Render Blueprint from this GitHub repo. Render will run:
+
+```txt
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+Render is a better fit than Vercel for demonstrating the `process_pool` execution mode because it runs as a long-lived web service instead of a serverless function.
