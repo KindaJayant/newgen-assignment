@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scalable Join Processor</title>
+    <style>
+      *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #111110;
+        --surface: #1a1917;
+        --surface-2: #222220;
+        --border: #2e2d2a;
+        --border-2: #3d3c38;
+        --text: #e8e6e0;
+        --text-2: #9b9890;
+        --text-3: #66635d;
+        --blue: #60a5fa;
+        --green: #4ade80;
+        --red: #f87171;
+        --yellow: #fbbf24;
+        --mono: Consolas, "SFMono-Regular", ui-monospace, monospace;
+        --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 13px;
+        line-height: 1.5;
+        min-height: 100vh;
+      }
+
+      nav {
+        align-items: center;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        height: 48px;
+        justify-content: space-between;
+        padding: 0 20px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .nav-brand,
+      .nav-right,
+      .panel-title,
+      .health-badge,
+      .nav-time,
+      label,
+      input,
+      select,
+      button,
+      table,
+      .stat-label,
+      .stat-value,
+      .pill,
+      .log-terminal {
+        font-family: var(--mono);
+      }
+
+      .nav-brand {
+        align-items: center;
+        display: flex;
+        font-size: 13px;
+        font-weight: 600;
+        gap: 10px;
+      }
+
+      .nav-right {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+      }
+
+      .health-badge {
+        align-items: center;
+        border: 1px solid #1a3d25;
+        border-radius: 999px;
+        color: var(--green);
+        display: inline-flex;
+        font-size: 11px;
+        gap: 6px;
+        padding: 3px 10px;
+      }
+
+      .health-badge.offline {
+        border-color: #4a1f1f;
+        color: var(--red);
+      }
+
+      .health-dot {
+        animation: pulse 2s infinite;
+        background: #22c55e;
+        border-radius: 50%;
+        height: 6px;
+        width: 6px;
+      }
+
+      .health-badge.offline .health-dot {
+        animation: none;
+        background: #ef4444;
+      }
+
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25); }
+        50% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1); }
+      }
+
+      .nav-time {
+        color: var(--text-3);
+        font-size: 11px;
+      }
+
+      .layout {
+        align-items: start;
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 330px minmax(0, 1fr);
+        margin: 0 auto;
+        max-width: 1240px;
+        padding: 20px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .panel,
+      .stat-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+
+      .panel-header {
+        align-items: center;
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        min-height: 42px;
+        padding: 10px 14px;
+      }
+
+      .panel-title {
+        align-items: center;
+        color: var(--text-2);
+        display: flex;
+        font-size: 11px;
+        font-weight: 600;
+        gap: 7px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .panel-body {
+        padding: 14px;
+      }
+
+      .form-group {
+        margin-bottom: 12px;
+      }
+
+      label {
+        color: var(--text-2);
+        display: block;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+      }
+
+      input,
+      select {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        font-size: 12px;
+        min-height: 35px;
+        outline: none;
+        padding: 7px 10px;
+        width: 100%;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: var(--text-2);
+      }
+
+      .trigger-btn,
+      .small-btn {
+        align-items: center;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        justify-content: center;
+      }
+
+      .trigger-btn {
+        background: #e8e6e0;
+        border: 0;
+        color: #111110;
+        font-size: 12px;
+        font-weight: 700;
+        gap: 8px;
+        margin-top: 4px;
+        min-height: 38px;
+        width: 100%;
+      }
+
+      .trigger-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .small-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-2);
+        font-size: 10px;
+        min-height: 25px;
+        padding: 3px 8px;
+      }
+
+      .small-btn:hover {
+        background: var(--surface-2);
+        color: var(--text);
+      }
+
+      .helper {
+        color: var(--text-3);
+        font-family: var(--mono);
+        font-size: 10px;
+        margin-top: 10px;
+        text-align: center;
+      }
+
+      .stats-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .stat-card {
+        padding: 12px 14px;
+      }
+
+      .stat-label {
+        color: var(--text-3);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+      }
+
+      .stat-value {
+        font-size: 26px;
+        line-height: 1;
+      }
+
+      .blue { color: var(--blue); }
+      .green { color: var(--green); }
+      .red { color: var(--red); }
+
+      .table-wrap {
+        overflow-x: auto;
+      }
+
+      table {
+        border-collapse: collapse;
+        font-size: 11px;
+        min-width: 850px;
+        width: 100%;
+      }
+
+      th {
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--border);
+        color: var(--text-3);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        padding: 8px 12px;
+        text-align: left;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      td {
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+        padding: 9px 12px;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+
+      tbody tr {
+        cursor: pointer;
+      }
+
+      tbody tr:hover td,
+      tbody tr.selected td {
+        background: var(--surface-2);
+      }
+
+      .muted {
+        color: var(--text-2);
+      }
+
+      .empty-row td {
+        color: var(--text-3);
+        cursor: default;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .badge,
+      .pill {
+        align-items: center;
+        border-radius: 999px;
+        display: inline-flex;
+        font-size: 10px;
+        gap: 5px;
+        padding: 2px 8px;
+      }
+
+      .badge-dot {
+        border-radius: 50%;
+        height: 5px;
+        width: 5px;
+      }
+
+      .s-queued {
+        background: #1e1d1b;
+        border: 1px solid #2e2d2a;
+        color: #8c8a83;
+      }
+
+      .s-queued .badge-dot { background: #6b6960; }
+
+      .s-running {
+        background: #0d1f35;
+        border: 1px solid #1e3a5f;
+        color: var(--blue);
+      }
+
+      .s-running .badge-dot {
+        animation: pulse 1.5s infinite;
+        background: #3b82f6;
+      }
+
+      .s-completed {
+        background: #0d2015;
+        border: 1px solid #1a3d25;
+        color: var(--green);
+      }
+
+      .s-completed .badge-dot { background: #22c55e; }
+
+      .s-failed {
+        background: #2a1010;
+        border: 1px solid #4a1f1f;
+        color: var(--red);
+      }
+
+      .s-failed .badge-dot { background: #ef4444; }
+
+      .pill {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        color: var(--text-2);
+      }
+
+      #detail-card {
+        display: none;
+      }
+
+      #detail-card.visible {
+        display: block;
+      }
+
+      .detail-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-bottom: 12px;
+      }
+
+      .log-terminal {
+        background: #0d0d0c;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: #c8c7c0;
+        font-size: 11px;
+        line-height: 1.8;
+        max-height: 230px;
+        overflow-y: auto;
+        padding: 12px;
+      }
+
+      .log-line {
+        display: flex;
+        gap: 12px;
+      }
+
+      .log-ts {
+        color: #55534e;
+        flex: 0 0 auto;
+      }
+
+      .log-info { color: var(--blue); }
+      .log-success { color: var(--green); }
+      .log-warn { color: var(--yellow); }
+      .log-err { color: var(--red); }
+
+      .comp-section-label {
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--border);
+        color: var(--text-3);
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        padding: 7px 12px 5px;
+        text-transform: uppercase;
+      }
+
+      .approach-name {
+        font-weight: 700;
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+          padding: 12px;
+        }
+
+        .stats-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="nav-brand">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+        </svg>
+        Scalable Join Processor
+      </div>
+      <div class="nav-right">
+        <div class="health-badge" id="health-badge">
+          <span class="health-dot"></span>
+          <span id="health-text">Checking API</span>
+        </div>
+        <div class="nav-time" id="nav-time"></div>
+      </div>
+    </nav>
+
+    <main class="layout">
+      <section class="stack">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              Trigger join job
+            </span>
+          </div>
+          <div class="panel-body">
+            <form id="job-form">
+              <div class="form-group">
+                <label for="f-users">Users CSV path</label>
+                <input type="text" id="f-users" name="users_path" value="data/users.csv" />
+              </div>
+              <div class="form-group">
+                <label for="f-tx">Transactions CSV path</label>
+                <input type="text" id="f-tx" name="transactions_path" value="data/transactions.csv" />
+              </div>
+              <div class="form-group">
+                <label for="f-out">Output CSV path</label>
+                <input type="text" id="f-out" name="output_path" value="data/result.csv" />
+              </div>
+              <div class="form-group">
+                <label for="f-join">Join mode</label>
+                <select id="f-join" name="join_mode">
+                  <option value="duckdb">DuckDB Join</option>
+                  <option value="external_sort">External Sort Join</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="f-exec">Execution mode</label>
+                <select id="f-exec" name="execution_mode">
+                  <option value="process_pool">Process Pool Worker</option>
+                  <option value="background_task">FastAPI Background Task</option>
+                </select>
+              </div>
+              <button class="trigger-btn" id="trigger-btn" type="submit">
+                <span id="btn-icon">▶</span>
+                <span id="btn-label">Trigger join</span>
+              </button>
+              <div class="helper" id="form-message">
+                POST /trigger-join | inner join on user_id | 256 MB RAM budget
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Approach comparison</span>
+          </div>
+          <div class="comp-section-label">Join strategy</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Approach</th>
+                <th>Pros</th>
+                <th>Cons</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="approach-name">DuckDB Join</span></td>
+                <td class="muted">Fast, memory-limited, spills to disk, easy to explain.</td>
+                <td class="muted">External dependency and less manual control.</td>
+              </tr>
+              <tr>
+                <td><span class="approach-name">External Sort Join</span></td>
+                <td class="muted">Pure Python and explicitly out-of-core.</td>
+                <td class="muted">More disk I/O and slower for large data.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="comp-section-label">API execution strategy</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Approach</th>
+                <th>Pros</th>
+                <th>Cons</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="approach-name">BackgroundTasks</span></td>
+                <td class="muted">Smallest FastAPI implementation.</td>
+                <td class="muted">Runs inside the web process.</td>
+              </tr>
+              <tr>
+                <td><span class="approach-name">Process Pool</span></td>
+                <td class="muted">Better CPU isolation and API responsiveness.</td>
+                <td class="muted">More moving parts than a background task.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="stack">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total jobs</div>
+            <div class="stat-value" id="stat-total">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Running</div>
+            <div class="stat-value blue" id="stat-running">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Completed</div>
+            <div class="stat-value green" id="stat-done">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Failed</div>
+            <div class="stat-value red" id="stat-failed">0</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Job queue</span>
+            <button class="small-btn" id="refresh-btn" type="button">Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Job ID</th>
+                  <th>Status</th>
+                  <th>Join mode</th>
+                  <th>Execution</th>
+                  <th>Started at</th>
+                  <th>Duration</th>
+                  <th>Output</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="job-tbody">
+                <tr class="empty-row"><td colspan="8">No jobs yet - trigger one to get started</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" id="detail-card">
+          <div class="panel-header">
+            <span class="panel-title">Job detail - <span id="detail-id"></span></span>
+            <button class="small-btn" id="close-detail" type="button">Close</button>
+          </div>
+          <div class="panel-body">
+            <div class="detail-meta" id="detail-meta"></div>
+            <div class="log-terminal" id="detail-logs"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const JOIN_LABELS = { external_sort: "External Sort", duckdb: "DuckDB" };
+      const EXEC_LABELS = {
+        background_task: "BG Task",
+        process_pool: "Process Pool",
+      };
+
+      let jobs = [];
+      let selectedId = null;
+
+      function updateClock() {
+        document.getElementById("nav-time").textContent =
+          new Date().toLocaleTimeString("en-GB", { hour12: false });
+      }
+
+      function formatTime(value) {
+        if (!value) return "-";
+        return new Date(value).toLocaleTimeString("en-GB", { hour12: false });
+      }
+
+      function duration(job) {
+        if (job.duration_seconds !== null && job.duration_seconds !== undefined) {
+          return `${job.duration_seconds}s`;
+        }
+        if (job.status === "running" && job.started_at) {
+          const seconds = Math.round((Date.now() - new Date(job.started_at)) / 1000);
+          return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+        }
+        return "-";
+      }
+
+      function badge(status) {
+        return `<span class="badge s-${status}"><span class="badge-dot"></span>${status}</span>`;
+      }
+
+      function fileName(path) {
+        if (!path) return "-";
+        return path.split(/[\\\\/]/).pop();
+      }
+
+      async function checkHealth() {
+        const badgeEl = document.getElementById("health-badge");
+        const textEl = document.getElementById("health-text");
+        try {
+          const response = await fetch("/health");
+          if (!response.ok) throw new Error("offline");
+          badgeEl.classList.remove("offline");
+          textEl.textContent = "API healthy";
+        } catch {
+          badgeEl.classList.add("offline");
+          textEl.textContent = "API offline";
+        }
+      }
+
+      function renderStats() {
+        const running = jobs.filter((job) => job.status === "running" || job.status === "queued").length;
+        const completed = jobs.filter((job) => job.status === "completed").length;
+        const failed = jobs.filter((job) => job.status === "failed").length;
+        document.getElementById("stat-total").textContent = jobs.length;
+        document.getElementById("stat-running").textContent = running;
+        document.getElementById("stat-done").textContent = completed;
+        document.getElementById("stat-failed").textContent = failed;
+      }
+
+      function renderTable() {
+        const tbody = document.getElementById("job-tbody");
+        if (!jobs.length) {
+          tbody.innerHTML = '<tr class="empty-row"><td colspan="8">No jobs yet - trigger one to get started</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = jobs.map((job) => `
+          <tr class="${selectedId === job.job_id ? "selected" : ""}" data-job-id="${job.job_id}">
+            <td>${job.job_id.slice(0, 10)}</td>
+            <td>${badge(job.status)}</td>
+            <td><span class="pill">${JOIN_LABELS[job.join_mode]}</span></td>
+            <td><span class="pill">${EXEC_LABELS[job.execution_mode]}</span></td>
+            <td class="muted">${formatTime(job.started_at)}</td>
+            <td class="muted">${duration(job)}</td>
+            <td class="muted" title="${job.output_path}">${fileName(job.output_path)}</td>
+            <td><button class="small-btn" type="button" data-view-id="${job.job_id}">Logs</button></td>
+          </tr>
+        `).join("");
+
+        tbody.querySelectorAll("[data-job-id]").forEach((row) => {
+          row.addEventListener("click", () => selectJob(row.dataset.jobId));
+        });
+        tbody.querySelectorAll("[data-view-id]").forEach((button) => {
+          button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            selectJob(button.dataset.viewId);
+          });
+        });
+      }
+
+      async function loadJobs() {
+        const response = await fetch("/jobs");
+        jobs = await response.json();
+        renderStats();
+        renderTable();
+        if (selectedId) await selectJob(selectedId, false);
+      }
+
+      async function selectJob(jobId, shouldRenderTable = true) {
+        selectedId = jobId;
+        const [jobResponse, eventsResponse] = await Promise.all([
+          fetch(`/jobs/${jobId}`),
+          fetch(`/jobs/${jobId}/events`),
+        ]);
+        if (!jobResponse.ok) return;
+
+        const job = await jobResponse.json();
+        const eventPayload = await eventsResponse.json();
+        document.getElementById("detail-card").classList.add("visible");
+        document.getElementById("detail-id").textContent = job.job_id.slice(0, 10);
+
+        document.getElementById("detail-meta").innerHTML = `
+          ${badge(job.status)}
+          <span class="pill">${JOIN_LABELS[job.join_mode]}</span>
+          <span class="pill">${EXEC_LABELS[job.execution_mode]}</span>
+          <span class="pill">${fileName(job.output_path)}</span>
+          ${job.error ? `<span class="pill s-failed">${job.error}</span>` : ""}
+        `;
+
+        const lines = eventPayload.events.map((event) => {
+          const cls = event.level === "ERROR" ? "log-err" : "log-info";
+          return `<div class="log-line"><span class="log-ts">${formatTime(event.created_at)}</span><span class="${cls}">${event.level} ${event.message}</span></div>`;
+        });
+        document.getElementById("detail-logs").innerHTML = lines.join("") || "No events yet.";
+
+        if (shouldRenderTable) renderTable();
+      }
+
+      async function triggerJob(event) {
+        event.preventDefault();
+        const button = document.getElementById("trigger-btn");
+        const label = document.getElementById("btn-label");
+        const message = document.getElementById("form-message");
+        const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+
+        button.disabled = true;
+        label.textContent = "Queuing...";
+        message.textContent = "Submitting POST /trigger-join";
+
+        try {
+          const response = await fetch("/trigger-join", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.detail || "Unable to queue job");
+          selectedId = result.job_id;
+          message.textContent = `Queued job ${result.job_id.slice(0, 10)}`;
+          await loadJobs();
+        } catch (error) {
+          message.textContent = error.message;
+        } finally {
+          button.disabled = false;
+          label.textContent = "Trigger join";
+        }
+      }
+
+      document.getElementById("job-form").addEventListener("submit", triggerJob);
+      document.getElementById("refresh-btn").addEventListener("click", loadJobs);
+      document.getElementById("close-detail").addEventListener("click", () => {
+        selectedId = null;
+        document.getElementById("detail-card").classList.remove("visible");
+        renderTable();
+      });
+
+      updateClock();
+      checkHealth();
+      loadJobs();
+      setInterval(updateClock, 1000);
+      setInterval(checkHealth, 10000);
+      setInterval(loadJobs, 3000);
+    </script>
+  </body>
+</html>
