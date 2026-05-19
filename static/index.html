@@ -688,6 +688,20 @@
         }
       }
 
+      async function loadConfig() {
+        try {
+          const response = await fetch("/config");
+          if (!response.ok) return;
+          const config = await response.json();
+          document.getElementById("f-users").value = config.users_path;
+          document.getElementById("f-tx").value = config.transactions_path;
+          document.getElementById("f-out").value = config.output_path;
+          document.getElementById("f-exec").value = config.execution_mode;
+        } catch {
+          // Local defaults remain usable if config is unavailable.
+        }
+      }
+
       function renderStats() {
         const running = jobs.filter((job) => job.status === "running" || job.status === "queued").length;
         const completed = jobs.filter((job) => job.status === "completed").length;
@@ -807,6 +821,7 @@
 
       updateClock();
       checkHealth();
+      loadConfig();
       loadJobs();
       setInterval(updateClock, 1000);
       setInterval(checkHealth, 10000);

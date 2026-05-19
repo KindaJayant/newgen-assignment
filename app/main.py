@@ -13,7 +13,7 @@ from app.models import (
     TriggerJoinRequest,
     TriggerJoinResponse,
 )
-from app.settings import STATIC_DIR, ensure_runtime_dirs
+from app.settings import IS_VERCEL, STATIC_DIR, ensure_runtime_dirs
 
 
 configure_logging()
@@ -50,6 +50,23 @@ def dashboard() -> FileResponse:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/config")
+def config() -> dict[str, str]:
+    if IS_VERCEL:
+        return {
+            "users_path": "sample_data/users.csv",
+            "transactions_path": "sample_data/transactions.csv",
+            "output_path": "/tmp/result.csv",
+            "execution_mode": "background_task",
+        }
+    return {
+        "users_path": "data/users.csv",
+        "transactions_path": "data/transactions.csv",
+        "output_path": "data/result.csv",
+        "execution_mode": "process_pool",
+    }
 
 
 @app.post("/trigger-join", response_model=TriggerJoinResponse)
