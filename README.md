@@ -62,3 +62,20 @@ curl http://127.0.0.1:8000/jobs
 ```powershell
 pytest
 ```
+
+## Deploy
+
+This repo includes Vercel support:
+
+- `api/index.py` exposes the FastAPI app as a Vercel Python function.
+- `vercel.json` routes all requests to the FastAPI app.
+- `sample_data/` contains tiny real CSVs so the hosted dashboard can trigger a real join.
+- On Vercel, SQLite, logs, and output files use `/tmp` because serverless filesystems are ephemeral.
+
+Deploy from the project root:
+
+```powershell
+npx vercel --prod
+```
+
+For the strongest interview demo of long-running background jobs, run locally or use a container/VM host such as Render, Railway, Fly.io, or an EC2 instance. Vercel is serverless, so it is useful for a lightweight hosted demo but not the ideal production target for long CPU-heavy background workers.
