@@ -548,55 +548,6 @@
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-title">Approach comparison</span>
-          </div>
-          <div class="comp-section-label">Join strategy</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Approach</th>
-                <th>Pros</th>
-                <th>Cons</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><span class="approach-name">DuckDB Join</span></td>
-                <td class="muted">Fast, memory-limited, spills to disk, easy to explain.</td>
-                <td class="muted">External dependency and less manual control.</td>
-              </tr>
-              <tr>
-                <td><span class="approach-name">External Sort Join</span></td>
-                <td class="muted">Pure Python and explicitly out-of-core.</td>
-                <td class="muted">More disk I/O and slower for large data.</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="comp-section-label">API execution strategy</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Approach</th>
-                <th>Pros</th>
-                <th>Cons</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><span class="approach-name">BackgroundTasks</span></td>
-                <td class="muted">Smallest FastAPI implementation.</td>
-                <td class="muted">Runs inside the web process.</td>
-              </tr>
-              <tr>
-                <td><span class="approach-name">Process Pool</span></td>
-                <td class="muted">Better CPU isolation and API responsiveness.</td>
-                <td class="muted">More moving parts than a background task.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </section>
 
       <section class="stack">
