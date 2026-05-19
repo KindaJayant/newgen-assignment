@@ -135,6 +135,10 @@ Returns job lifecycle events.
 
 Health check endpoint.
 
+### `POST /upload-csv`
+
+Uploads a CSV from the browser and returns the saved server path. The dashboard uses this endpoint to fill the path fields before triggering a join.
+
 ## Run Locally
 
 ```powershell
@@ -160,6 +164,11 @@ Open:
 ```txt
 http://127.0.0.1:8000
 ```
+
+You can provide CSVs in two ways:
+
+1. Generate or place files on the server and enter their paths, such as `data/users.csv` and `data/transactions.csv`.
+2. Use the dashboard upload buttons to upload `users.csv` and `transactions.csv`; the form automatically fills in the saved server paths.
 
 ## Full-Scale Data
 
@@ -194,6 +203,7 @@ The tests verify:
 - DuckDB join output.
 - External sort-merge join output.
 - API job creation, completion, and job events.
+- CSV upload endpoint.
 
 ## Deployment
 

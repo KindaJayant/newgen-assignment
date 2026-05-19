@@ -1,7 +1,9 @@
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
+import shutil
+from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -12,8 +14,9 @@ from app.models import (
     JobRecord,
     TriggerJoinRequest,
     TriggerJoinResponse,
+    UploadResponse,
 )
-from app.settings import IS_VERCEL, STATIC_DIR, ensure_runtime_dirs
+from app.settings import DATA_DIR, IS_VERCEL, STATIC_DIR, ensure_runtime_dirs
 
 
 configure_logging()
@@ -68,6 +71,31 @@ def config() -> dict[str, str]:
         "output_path": "data/result.csv",
         "execution_mode": "process_pool",
     }
+
+
+@app.post("/upload-csv", response_model=UploadResponse)
+def upload_csv(
+    dataset: str = Form(...),
+    file: UploadFile = File(...),
+) -> UploadResponse:
+    if dataset not in {"users", "transactions"}:
+        raise HTTPException(status_code=400, detail="dataset must be users or transactions")
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are supported")
+
+    upload_dir = DATA_DIR / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(file.filename).name.replace(" ", "_")
+    saved_path = upload_dir / f"{dataset}_{safe_name}"
+
+    with saved_path.open("wb") as handle:
+        shutil.copyfileobj(file.file, handle)
+
+    return UploadResponse(
+        filename=file.filename,
+        saved_path=str(saved_path),
+        message=f"Uploaded {dataset} CSV",
+    )
 
 
 @app.post("/trigger-join", response_model=TriggerJoinResponse)

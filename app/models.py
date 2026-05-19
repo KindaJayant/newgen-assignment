@@ -50,3 +50,9 @@ class JobRecord(BaseModel):
     finished_at: Optional[str] = None
     duration_seconds: Optional[float] = None
     error: Optional[str] = None
+
+
+class UploadResponse(BaseModel):
+    filename: str
+    saved_path: str
+    message: str

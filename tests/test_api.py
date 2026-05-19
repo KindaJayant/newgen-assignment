@@ -52,3 +52,25 @@ def test_trigger_join_returns_job_id_and_completes(tmp_path: Path) -> None:
     assert output.exists()
     assert any("Join started" in event["message"] for event in events)
     assert any("Join completed" in event["message"] for event in events)
+
+
+def test_upload_csv_saves_file() -> None:
+    from app.main import app
+
+    client = TestClient(app)
+    response = client.post(
+        "/upload-csv",
+        data={"dataset": "users"},
+        files={
+            "file": (
+                "users.csv",
+                b"user_id,name,signup_date\n1,Ada,2020-01-01\n",
+                "text/csv",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["filename"] == "users.csv"
+    assert payload["saved_path"].endswith("users_users.csv")

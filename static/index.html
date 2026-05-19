@@ -174,6 +174,13 @@
         margin-bottom: 12px;
       }
 
+      .upload-row {
+        align-items: center;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: 1fr auto;
+      }
+
       label {
         color: var(--text-2);
         display: block;
@@ -197,6 +204,10 @@
         width: 100%;
       }
 
+      input[type="file"] {
+        display: none;
+      }
+
       input:focus,
       select:focus {
         border-color: var(--text-2);
@@ -209,6 +220,11 @@
         cursor: pointer;
         display: inline-flex;
         justify-content: center;
+      }
+
+      .upload-btn {
+        min-height: 35px;
+        white-space: nowrap;
       }
 
       .trigger-btn {
@@ -489,11 +505,19 @@
             <form id="job-form">
               <div class="form-group">
                 <label for="f-users">Users CSV path</label>
-                <input type="text" id="f-users" name="users_path" value="data/users.csv" />
+                <div class="upload-row">
+                  <input type="text" id="f-users" name="users_path" value="data/users.csv" />
+                  <button class="small-btn upload-btn" type="button" data-upload-button="users">Upload</button>
+                  <input type="file" id="upload-users" accept=".csv" data-upload-input="users" />
+                </div>
               </div>
               <div class="form-group">
                 <label for="f-tx">Transactions CSV path</label>
-                <input type="text" id="f-tx" name="transactions_path" value="data/transactions.csv" />
+                <div class="upload-row">
+                  <input type="text" id="f-tx" name="transactions_path" value="data/transactions.csv" />
+                  <button class="small-btn upload-btn" type="button" data-upload-button="transactions">Upload</button>
+                  <input type="file" id="upload-transactions" accept=".csv" data-upload-input="transactions" />
+                </div>
               </div>
               <div class="form-group">
                 <label for="f-out">Output CSV path</label>
@@ -811,8 +835,47 @@
         }
       }
 
+      async function uploadCsv(dataset, file) {
+        const message = document.getElementById("form-message");
+        const payload = new FormData();
+        payload.append("dataset", dataset);
+        payload.append("file", file);
+        message.textContent = `Uploading ${dataset} CSV...`;
+
+        const response = await fetch("/upload-csv", {
+          method: "POST",
+          body: payload,
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || "Upload failed");
+
+        if (dataset === "users") {
+          document.getElementById("f-users").value = result.saved_path;
+        } else {
+          document.getElementById("f-tx").value = result.saved_path;
+        }
+        message.textContent = result.message;
+      }
+
       document.getElementById("job-form").addEventListener("submit", triggerJob);
       document.getElementById("refresh-btn").addEventListener("click", loadJobs);
+      document.querySelectorAll("[data-upload-button]").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.getElementById(`upload-${button.dataset.uploadButton}`).click();
+        });
+      });
+      document.querySelectorAll("[data-upload-input]").forEach((input) => {
+        input.addEventListener("change", async () => {
+          if (!input.files.length) return;
+          try {
+            await uploadCsv(input.dataset.uploadInput, input.files[0]);
+          } catch (error) {
+            document.getElementById("form-message").textContent = error.message;
+          } finally {
+            input.value = "";
+          }
+        });
+      });
       document.getElementById("close-detail").addEventListener("click", () => {
         selectedId = null;
         document.getElementById("detail-card").classList.remove("visible");
