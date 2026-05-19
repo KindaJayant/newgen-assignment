@@ -2,9 +2,6 @@
 
 Production-style FastAPI service for joining large CSV datasets without loading them fully into memory. The project implements the NewGenesis Software Design Engineer assessment: an out-of-core data join plus a non-blocking API that triggers the join as a background job.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black)](https://newgenassignment.vercel.app)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/KindaJayant/newgen-assignment)
-
 ## Preview
 
 ![Scalable Join Processor dashboard](docs/assets/dashboard.png)
@@ -200,27 +197,19 @@ The tests verify:
 
 ## Deployment
 
-### Vercel
-
-Live demo:
+The app has also been deployed as a lightweight hosted demo:
 
 [https://newgenassignment.vercel.app](https://newgenassignment.vercel.app)
 
-Vercel is serverless, so the deployed version uses committed sample CSV files and falls back to `background_task`. SQLite, logs, and result output use `/tmp` because serverless filesystems are ephemeral.
+The production demo uses the same FastAPI app and dashboard. Since Vercel is serverless, it uses committed sample CSV files and `background_task` mode for the hosted demo. Locally or on a long-running service such as Render, the same app can use `process_pool`.
 
-Deploy:
+Deployment process:
 
-```powershell
-npx vercel --prod
-```
-
-### Render
-
-Render is configured through `render.yaml` and is a better target for demonstrating the full `process_pool` mode because it runs as a long-lived web service.
-
-[Deploy to Render](https://render.com/deploy?repo=https://github.com/KindaJayant/newgen-assignment)
-
-The repo pins Python `3.11.11` through `.python-version` and `PYTHON_VERSION` because binary packages such as DuckDB are safest on a stable Python version.
+1. Install dependencies from `requirements.txt`.
+2. Run the FastAPI app with `uvicorn app.main:app`.
+3. For Vercel, route requests through `api/index.py` and `vercel.json`.
+4. For Render, use `render.yaml` with `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+5. Keep Python pinned to `3.11.11` for stable DuckDB binary wheels.
 
 ## Project Structure
 
