@@ -90,3 +90,5 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
 Render is a better fit than Vercel for demonstrating the `process_pool` execution mode because it runs as a long-lived web service instead of a serverless function.
+
+The repo pins Render to Python `3.11.11` through `.python-version` and `PYTHON_VERSION` because Render's newest default Python version can be ahead of some binary wheels.
