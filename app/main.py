@@ -1,4 +1,5 @@
 from concurrent.futures import ProcessPoolExecutor
+from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -22,18 +23,23 @@ store = JobStore()
 store.init_db()
 executor = ProcessPoolExecutor(max_workers=1)
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        yield
+    finally:
+        executor.shutdown(wait=False, cancel_futures=False)
+
+
 app = FastAPI(
     title="Scalable Data Processing API",
     description="Non-blocking API for memory-safe CSV joins.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-
-@app.on_event("shutdown")
-def shutdown_executor() -> None:
-    executor.shutdown(wait=False, cancel_futures=False)
 
 
 @app.get("/")
