@@ -112,6 +112,14 @@ def _grouped_by_key(
         yield current_key, group
 
 
+def _numeric_sort_value(row: dict[str, str], key: str) -> tuple[int, str]:
+    value = row.get(key, "")
+    try:
+        return (0, f"{int(value):020d}")
+    except ValueError:
+        return (1, value)
+
+
 def external_sort_join(
     users_path: str | Path,
     transactions_path: str | Path,
@@ -170,8 +178,16 @@ def external_sort_join(
 
             while True:
                 if user_key == transaction_key:
-                    for user in users_for_key:
-                        for transaction in transactions_for_key:
+                    ordered_users = sorted(
+                        users_for_key,
+                        key=lambda row: _numeric_sort_value(row, "user_id"),
+                    )
+                    ordered_transactions = sorted(
+                        transactions_for_key,
+                        key=lambda row: _numeric_sort_value(row, "transaction_id"),
+                    )
+                    for user in ordered_users:
+                        for transaction in ordered_transactions:
                             writer.writerow(
                                 {
                                     "user_id": user["user_id"],
