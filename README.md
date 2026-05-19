@@ -1,19 +1,144 @@
-# Scalable Data Processing API
+# Scalable Join Processor
 
-Assignment-ready implementation for joining large CSV datasets without loading them fully into memory, then triggering the join through a non-blocking FastAPI API.
+Production-style FastAPI service for joining large CSV datasets without loading them fully into memory. The project implements the NewGenesis Software Design Engineer assessment: an out-of-core data join plus a non-blocking API that triggers the join as a background job.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black)](https://newgenassignment.vercel.app)
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/KindaJayant/newgen-assignment)
 
-## Direction
+## Preview
 
-The primary join engine is DuckDB because it can scan CSV files lazily, enforce a memory limit, and spill intermediate work to disk. A pure Python external sort-merge join is also included to demonstrate the out-of-core algorithm explicitly.
+![Scalable Join Processor dashboard](docs/assets/dashboard.png)
 
-The API exposes two non-blocking execution approaches:
+## What This Solves
 
-- `background_task`: FastAPI `BackgroundTasks`, simplest for demos.
-- `process_pool`: `ProcessPoolExecutor`, better isolation for CPU-heavy joins.
+Large CSV joins are risky inside a normal request-response API. Loading two 500 MB CSVs with `pandas.read_csv()` and `merge()` can exceed memory limits, block the web server, and cause timeouts under concurrent use.
 
-## Setup
+This project uses a job-based architecture:
+
+- The API accepts a join request and immediately returns a `job_id`.
+- The join runs outside the request path.
+- Job status and events are stored in SQLite.
+- The frontend polls the API and shows real job progress.
+- The join output is streamed to a CSV file.
+
+## Assignment Coverage
+
+| Requirement | Implementation |
+| --- | --- |
+| Join `users.csv` and `transactions.csv` on `user_id` | `duckdb_join.py` and `external_sort_join.py` |
+| Avoid loading full datasets into memory | DuckDB memory limit and pure Python chunked external sort |
+| Output `result.csv` | Configurable `output_path` written by both join engines |
+| FastAPI endpoint to trigger join | `POST /trigger-join` |
+| Return immediately with job ID | API returns `job_id` with `queued` status |
+| Run join in background | `BackgroundTasks` and `ProcessPoolExecutor` |
+| Implement at least two approaches | Two join approaches and two API execution approaches |
+| Log job start and finish | SQLite job events plus rotating file logs |
+| Explain pros and cons | Dashboard comparison panel and `docs/approaches.md` |
+
+## Architecture Flow
+
+```mermaid
+flowchart TD
+    U["User / Dashboard"] -->|"POST /trigger-join"| API["FastAPI API"]
+    API -->|"Create job_id"| DB[("SQLite Job Store")]
+    API -->|"Immediate response"| U
+
+    API -->|"execution_mode=background_task"| BG["FastAPI BackgroundTasks"]
+    API -->|"execution_mode=process_pool"| PP["ProcessPoolExecutor Worker"]
+
+    BG --> JOIN["Join Runner"]
+    PP --> JOIN
+
+    JOIN -->|"join_mode=duckdb"| DDB["DuckDB CSV Join"]
+    JOIN -->|"join_mode=external_sort"| EXT["External Sort-Merge Join"]
+
+    DDB -->|"Memory limit + temp spill"| TMP[("Temp Disk")]
+    EXT -->|"Sorted chunks + k-way merge"| TMP
+
+    DDB --> OUT["result.csv"]
+    EXT --> OUT
+
+    JOIN -->|"running / completed / failed"| DB
+    JOIN -->|"events: queued, started, completed"| DB
+
+    U -->|"GET /jobs"| API
+    U -->|"GET /jobs/{job_id}/events"| API
+    API --> DB
+```
+
+## Core Design
+
+### Join Approach 1: DuckDB
+
+DuckDB is the practical default. It scans CSV files directly, applies a memory limit, can spill intermediate work to disk, and writes the joined output without creating large Python DataFrames.
+
+Best for:
+
+- Real-world analytics workloads.
+- Fast local demos.
+- Clear explanation under the 256 MB RAM constraint.
+
+### Join Approach 2: External Sort-Merge
+
+The pure Python implementation reads each CSV in chunks, sorts chunks by `user_id`, writes sorted chunks to disk, performs a k-way merge, and streams matching rows into the result file.
+
+Best for:
+
+- Showing explicit out-of-core algorithm knowledge.
+- Environments where a database engine is not allowed.
+- Explaining why chunking and streaming matter.
+
+### API Approach 1: FastAPI BackgroundTasks
+
+Simple non-blocking approach. The API returns a response first, then FastAPI runs the job after the response has been sent.
+
+### API Approach 2: ProcessPoolExecutor
+
+Better local/container approach for CPU-heavy jobs. The web process stays responsive while a separate worker process performs the join.
+
+## API
+
+### `POST /trigger-join`
+
+Starts a join job and returns immediately.
+
+```json
+{
+  "users_path": "data/users.csv",
+  "transactions_path": "data/transactions.csv",
+  "output_path": "data/result.csv",
+  "join_mode": "duckdb",
+  "execution_mode": "process_pool"
+}
+```
+
+Response:
+
+```json
+{
+  "job_id": "27ea99d3f1054529a4721d256b65a73a",
+  "status": "queued",
+  "message": "Join job queued. Use the job_id to check status."
+}
+```
+
+### `GET /jobs`
+
+Returns all jobs, latest first.
+
+### `GET /jobs/{job_id}`
+
+Returns one job record with status, paths, duration, and error if any.
+
+### `GET /jobs/{job_id}/events`
+
+Returns job lifecycle events.
+
+### `GET /health`
+
+Health check endpoint.
+
+## Run Locally
 
 ```powershell
 python -m venv .venv
@@ -21,19 +146,13 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Generate sample data
+Generate demo data:
 
 ```powershell
-python scripts\generate_data.py --users 10000 --transactions 25000
+python scripts\generate_data.py --users 10000 --transactions 25000 --output-dir data
 ```
 
-For full assignment-sized files, run:
-
-```powershell
-python scripts\generate_data.py --users 5000000 --transactions 10000000
-```
-
-## Run the API
+Start the API:
 
 ```powershell
 uvicorn app.main:app --reload
@@ -45,7 +164,15 @@ Open:
 http://127.0.0.1:8000
 ```
 
-## Trigger a job
+## Full-Scale Data
+
+To generate assignment-sized files:
+
+```powershell
+python scripts\generate_data.py --users 5000000 --transactions 10000000 --output-dir data
+```
+
+Then trigger the job from the dashboard or with:
 
 ```powershell
 curl -X POST http://127.0.0.1:8000/trigger-join `
@@ -53,42 +180,73 @@ curl -X POST http://127.0.0.1:8000/trigger-join `
   -d "{\"users_path\":\"data/users.csv\",\"transactions_path\":\"data/transactions.csv\",\"output_path\":\"data/result.csv\",\"join_mode\":\"duckdb\",\"execution_mode\":\"process_pool\"}"
 ```
 
-Then check:
-
-```powershell
-curl http://127.0.0.1:8000/jobs
-```
-
-## Run tests
+## Tests
 
 ```powershell
 pytest
 ```
 
-## Deploy
+Expected:
 
-This repo includes Vercel support:
+```txt
+3 passed
+```
 
-- `api/index.py` exposes the FastAPI app as a Vercel Python function.
-- `vercel.json` routes all requests to the FastAPI app.
-- `sample_data/` contains tiny real CSVs so the hosted dashboard can trigger a real join.
-- On Vercel, SQLite, logs, and output files use `/tmp` because serverless filesystems are ephemeral.
+The tests verify:
 
-Deploy from the project root:
+- DuckDB join output.
+- External sort-merge join output.
+- API job creation, completion, and job events.
+
+## Deployment
+
+### Vercel
+
+Live demo:
+
+[https://newgenassignment.vercel.app](https://newgenassignment.vercel.app)
+
+Vercel is serverless, so the deployed version uses committed sample CSV files and falls back to `background_task`. SQLite, logs, and result output use `/tmp` because serverless filesystems are ephemeral.
+
+Deploy:
 
 ```powershell
 npx vercel --prod
 ```
 
-For the strongest interview demo of long-running background jobs, run locally or use a container/VM host such as Render, Railway, Fly.io, or an EC2 instance. Vercel is serverless, so it is useful for a lightweight hosted demo but not the ideal production target for long CPU-heavy background workers.
+### Render
 
-Render is also configured through `render.yaml`. To deploy there, create a new Render Blueprint from this GitHub repo. Render will run:
+Render is configured through `render.yaml` and is a better target for demonstrating the full `process_pool` mode because it runs as a long-lived web service.
+
+[Deploy to Render](https://render.com/deploy?repo=https://github.com/KindaJayant/newgen-assignment)
+
+The repo pins Python `3.11.11` through `.python-version` and `PYTHON_VERSION` because binary packages such as DuckDB are safest on a stable Python version.
+
+## Project Structure
 
 ```txt
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
+app/
+  main.py                 FastAPI routes and app setup
+  jobs.py                 SQLite job store and worker orchestration
+  models.py               Pydantic request/response models
+  settings.py             Local/Vercel runtime paths
+joiners/
+  duckdb_join.py          DuckDB-backed out-of-core join
+  external_sort_join.py   Pure Python external sort-merge join
+scripts/
+  generate_data.py        Synthetic CSV data generator
+static/
+  index.html              Dashboard frontend
+docs/
+  approaches.md           Pros and cons write-up
+  assets/dashboard.png    README screenshot
+tests/
+  test_api.py             API job tests
+  test_joiners.py         Join engine tests
 ```
 
-Render is a better fit than Vercel for demonstrating the `process_pool` execution mode because it runs as a long-lived web service instead of a serverless function.
+## Interview Explanation
 
-The repo pins Render to Python `3.11.11` through `.python-version` and `PYTHON_VERSION` because Render's newest default Python version can be ahead of some binary wheels.
+The shortest defensible explanation:
+
+> This is a local prototype of a production data-processing system. The API does not do heavy work inside the HTTP request. It creates a job, returns a job ID, and runs a memory-safe CSV join in the background. DuckDB is the practical engine for fast out-of-core joins, and the external sort-merge implementation shows the underlying algorithm. The dashboard proves the API is non-blocking by tracking queued, running, completed, and failed jobs.
